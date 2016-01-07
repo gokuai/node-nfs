@@ -13,7 +13,7 @@ var libuuid = require('node-uuid');
 var nfs = require('../lib');
 var rpc = require('oncrpc');
 var statvfs = require('statvfs');
-var vasync = require('vasync')
+var vasync = require('vasync');
 
 var sattr3 = require('../lib/nfs/sattr3');
 var fattr3 = require('../lib/nfs/fattr3');
@@ -70,7 +70,12 @@ function check_dirpath(req, res, next) {
     });
 }
 
-
+/**
+ * 挂载磁盘
+ * @param req
+ * @param res
+ * @param next
+ */
 function mount(req, res, next) {
     var uuid = libuuid.v4();
     MOUNTS[uuid] = req._dirpath;
@@ -80,7 +85,12 @@ function mount(req, res, next) {
     next();
 }
 
-
+/**
+ * 卸载
+ * @param req
+ * @param res
+ * @param next
+ */
 function umount(req, res, next) {
     res.send();
     next();
@@ -258,7 +268,7 @@ function fs_stat(req, res, next) {
         } else {
             //req.log.debug('fs_stat', stats);
             /*
-            修改文件大小显示的bug
+             修改文件大小显示的bug
              */
             res.tbytes = stats.blocks * stats.frsize;
             res.fbytes = stats.bfree * stats.frsize;
@@ -351,7 +361,7 @@ function create(req, res, next) {
         flags = 'wx';
     }
 
-    var mode = 0644;
+    var mode = parseInt('0644', 8);
     if (req.obj_attributes.mode !== null)
         mode = req.obj_attributes.mode;
 
@@ -435,7 +445,7 @@ function mkdir(req, res, next) {
             if (req.attributes.mode !== null)
                 mode = req.attributes.mode;
             else
-                mode = 0755;
+                mode = parseInt('0755', 8);
 
             fs.mkdir(nm, mode, function (err2) {
                 if (err2) {
