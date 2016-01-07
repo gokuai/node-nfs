@@ -27,10 +27,9 @@ var FILE_HANDLES = {};
 var MOUNTS = {};
 
 
-
 ////--- Private Functions
 
-function  authorize(req, res, next) {
+function authorize(req, res, next) {
     // Let everything through
     // if (!req.is_user(0)) {
     //     res.status = nfs.NFS3ERR_ACCES;
@@ -42,7 +41,12 @@ function  authorize(req, res, next) {
     next();
 }
 
-
+/**
+ * 检查目录路径
+ * @param req
+ * @param res
+ * @param next
+ */
 function check_dirpath(req, res, next) {
     assert.string(req.dirpath, 'req.dirpath');
 
@@ -153,7 +157,7 @@ function set_attr(req, res, next) {
         uid = req.new_attributes.uid;
     else
         uid = stats.uid;
-   
+
     if (req.new_attributes.gid !== null)
         gid = req.new_attributes.gid;
     else
@@ -180,7 +184,7 @@ function set_attr(req, res, next) {
     } else {
         atime = stats.atime;
     }
-   
+
     if (req.new_attributes.how_m_time === sattr3.time_how.SET_TO_CLIENT_TIME) {
         msecs = (req.new_attributes.mtime.seconds * 1000) +
             (req.new_attributes.mtime.nseconds / 1000000);
@@ -236,13 +240,12 @@ function fs_info(req, res, next) {
 
     // TODO: this isn't right, for some reason...
     res.properties =
-        nfs.FSF3_LINK     |
+        nfs.FSF3_LINK |
         nfs.FSF3_SYMLINK;
 
     res.send();
     next();
 }
-
 
 
 function fs_stat(req, res, next) {
@@ -253,9 +256,13 @@ function fs_stat(req, res, next) {
             res.error(nfs.NFS3ERR_STALE);
             next(false);
         } else {
-            res.tbytes = stats.blocks * stats.bsize;
-            res.fbytes = stats.bfree * stats.bsize;
-            res.abytes = stats.bavail * stats.bsize;
+            //req.log.debug('fs_stat', stats);
+            /*
+            修改文件大小显示的bug
+             */
+            res.tbytes = stats.blocks * stats.frsize;
+            res.fbytes = stats.bfree * stats.frsize;
+            res.abytes = stats.bavail * stats.frsize;
             res.tfiles = stats.files;
             res.ffiles = stats.ffree;
             res.afiles = stats.favail;
@@ -283,11 +290,11 @@ function path_conf(req, res, next) {
 
 function access(req, res, next) {
     res.access =
-        nfs.ACCESS3_READ    |
-        nfs.ACCESS3_LOOKUP  |
-        nfs.ACCESS3_MODIFY  |
-        nfs.ACCESS3_EXTEND  |
-        nfs.ACCESS3_DELETE  |
+        nfs.ACCESS3_READ |
+        nfs.ACCESS3_LOOKUP |
+        nfs.ACCESS3_MODIFY |
+        nfs.ACCESS3_EXTEND |
+        nfs.ACCESS3_DELETE |
         nfs.ACCESS3_EXECUTE;
     res.send();
     next();
@@ -375,7 +382,7 @@ function create(req, res, next) {
 
             if (req.obj_attributes.uid !== null)
                 uid = req.obj_attributes.uid;
-   
+
             if (req.obj_attributes.gid !== null)
                 gid = req.obj_attributes.gid;
 
@@ -452,7 +459,7 @@ function mkdir(req, res, next) {
                         uid = req.attributes.uid;
                     else
                         uid = stats.uid;
-   
+
                     if (req.attributes.gid !== null)
                         gid = req.attributes.gid;
                     else
@@ -588,7 +595,7 @@ function readdirplus(req, res, next) {
                             }
                         }
 
-                        if (! handle) {
+                        if (!handle) {
                             var uuid = libuuid.v4();
                             FILE_HANDLES[uuid] = p;
                             handle = uuid;
@@ -682,7 +689,7 @@ function symlink(req, res, next) {
 
             if (req.symlink_attributes.uid !== null)
                 uid = req.symlink_attributes.uid;
-   
+
             if (req.symlink_attributes.gid !== null)
                 gid = req.symlink_attributes.gid;
 
@@ -799,7 +806,7 @@ function write(req, res, next) {
             } else {
                 // Always sync to avoid double writes, see comment below for
                 // res.comitted.
-                fs.fsync(fd, function(err2) {
+                fs.fsync(fd, function (err2) {
                     // XXX ignore errors on the sync
 
                     fs.closeSync(fd);
@@ -829,7 +836,7 @@ function commit(req, res, next) {
             return;
         }
 
-        fs.fsync(fd, function(err) {
+        fs.fsync(fd, function (err) {
             // XXX ignore errors on the sync
 
             fs.closeSync(fd);
@@ -907,6 +914,7 @@ function commit(req, res, next) {
     nfsd.commit(authorize, check_fh_table, commit);
 
     var log = logger('audit');
+
     function after(name, req, res, err) {
         log.info({
             call: req.toString(),
@@ -914,6 +922,7 @@ function commit(req, res, next) {
             err: err
         }, '%s: handled', name);
     }
+
     portmapd.on('after', after);
     mountd.on('after', after);
     nfsd.on('after', after);
