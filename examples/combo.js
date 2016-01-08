@@ -539,8 +539,8 @@ function rmdir(req, res, next) {
 
 function readdir(req, res, next) {
     var dir = FILE_HANDLES[req.dir];
-
     fs.readdir(dir, function (err, files) {
+        console.log('readdir files', files);
         if (err) {
             nfs.handle_error(err, req, res, next);
             return;
@@ -558,7 +558,6 @@ function readdir(req, res, next) {
                 cookie: cook++
             });
         });
-
         res.send();
         next();
     });
@@ -567,6 +566,7 @@ function readdir(req, res, next) {
 
 function readdirplus(req, res, next) {
     var dir = FILE_HANDLES[req.dir];
+    console.log('readdirplus dir', dir);
     fs.readdir(dir, function (err, files) {
         if (err) {
             nfs.handle_error(err, req, res, next);
@@ -866,7 +866,10 @@ function commit(req, res, next) {
             name: name,
             level: process.env.LOG_LEVEL || 'debug',
             src: true,
-            stream: process.stdout,
+            streams: [{
+                type: 'file',
+                path: 'nfs.log'
+            }],
             serializers: rpc.serializers
         }));
         return (l);
