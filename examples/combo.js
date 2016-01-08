@@ -540,7 +540,6 @@ function rmdir(req, res, next) {
 function readdir(req, res, next) {
     var dir = FILE_HANDLES[req.dir];
     fs.readdir(dir, function (err, files) {
-        console.log('readdir files', files);
         if (err) {
             nfs.handle_error(err, req, res, next);
             return;
@@ -566,12 +565,11 @@ function readdir(req, res, next) {
 
 function readdirplus(req, res, next) {
     var dir = FILE_HANDLES[req.dir];
-    console.log('readdirplus dir', dir);
     fs.readdir(dir, function (err, files) {
         if (err) {
             nfs.handle_error(err, req, res, next);
         } else {
-            res.eof = (files.length < req.count) || true;
+            res.eof = (files.length < req.dircount) || true;
             res.setDirAttributes(req._stats);
 
             var barrier = vasync.barrier();
@@ -581,6 +579,7 @@ function readdirplus(req, res, next) {
                 if (error) {
                     nfs.handle_error(error, req, res, next);
                 } else {
+                    console.log('res', res.toString());
                     res.send();
                     next();
                 }
