@@ -289,7 +289,7 @@ function fs_info(req, res, next) {
 }
 
 /**
- *  Get dynamic file system information
+ * Get dynamic file system information
  * @param req
  * @param res
  * @param next
