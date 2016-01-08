@@ -28,7 +28,12 @@ var MOUNTS = {};
 
 
 ////--- Private Functions
-
+/**
+ * 认证,但是现在没在用
+ * @param req
+ * @param res
+ * @param next
+ */
 function authorize(req, res, next) {
     // Let everything through
     // if (!req.is_user(0)) {
@@ -86,7 +91,7 @@ function mount(req, res, next) {
 }
 
 /**
- * 卸载
+ * 挂载磁盘
  * @param req
  * @param res
  * @param next
@@ -96,7 +101,12 @@ function umount(req, res, next) {
     next();
 }
 
-
+/**
+ * 检查FILE_HANDLES表
+ * @param req
+ * @param res
+ * @param next
+ */
 function check_fh_table(req, res, next) {
     if (!FILE_HANDLES[req.object]) {
         req.log.warn({
@@ -110,7 +120,12 @@ function check_fh_table(req, res, next) {
     }
 }
 
-
+/**
+ * Get file attributes
+ * @param req
+ * @param res
+ * @param next
+ */
 function get_attr(req, res, next) {
     var f = FILE_HANDLES[req.object]
     fs.lstat(f, function (err, stats) {
@@ -126,7 +141,12 @@ function get_attr(req, res, next) {
     });
 }
 
-
+/**
+ * Set file attributes
+ * @param req
+ * @param res
+ * @param next
+ */
 function set_attr(req, res, next) {
     var f = FILE_HANDLES[req.object]
 
@@ -219,7 +239,12 @@ function set_attr(req, res, next) {
     next();
 }
 
-
+/**
+ * Check Access Permission
+ * @param req
+ * @param res
+ * @param next
+ */
 function fs_set_attrs(req, res, next) {
     var f = FILE_HANDLES[req.object];
     fs.lstat(f, function (err, stats) {
@@ -233,6 +258,12 @@ function fs_set_attrs(req, res, next) {
     });
 }
 
+/**
+ * Get static file system Information
+ * @param req
+ * @param res
+ * @param next
+ */
 function fs_info(req, res, next) {
     var stats = req._stats;
     // Stolen from: http://goo.gl/fBLulQ (IBM)
@@ -257,7 +288,12 @@ function fs_info(req, res, next) {
     next();
 }
 
-
+/**
+ *  Get dynamic file system information
+ * @param req
+ * @param res
+ * @param next
+ */
 function fs_stat(req, res, next) {
     var f = FILE_HANDLES[req.object];
     statvfs(f, function (err, stats) {
@@ -283,7 +319,12 @@ function fs_stat(req, res, next) {
     });
 }
 
-
+/**
+ * Retrieve POSIX information
+ * @param req
+ * @param res
+ * @param next
+ */
 function path_conf(req, res, next) {
     // var f = FILE_HANDLES[req.object];
     // TODO: call pathconf(2)
@@ -297,7 +338,12 @@ function path_conf(req, res, next) {
     next();
 }
 
-
+/**
+ * Access Permission
+ * @param req
+ * @param res
+ * @param next
+ */
 function access(req, res, next) {
     res.access =
         nfs.ACCESS3_READ |
@@ -310,7 +356,12 @@ function access(req, res, next) {
     next();
 }
 
-
+/**
+ * Lookup filename
+ * @param req
+ * @param res
+ * @param next
+ */
 function lookup(req, res, next) {
     var dir = FILE_HANDLES[req.what.dir];
 
@@ -339,7 +390,12 @@ function lookup(req, res, next) {
     });
 }
 
-
+/**
+ * Create a file
+ * @param req
+ * @param res
+ * @param next
+ */
 function create(req, res, next) {
 
     // fail exclusive create
@@ -415,13 +471,23 @@ function create(req, res, next) {
     });
 }
 
-
+/**
+ * Create a special device
+ * @param req
+ * @param res
+ * @param next
+ */
 function mknod(req, res, next) {
     res.error(nfs.NFS3ERR_NOTSUPP);
     next(false);
 }
 
-
+/**
+ * Create a directory
+ * @param req
+ * @param res
+ * @param next
+ */
 function mkdir(req, res, next) {
     if (req.where.name === "." || req.where.name === "..") {
         req.log.warn(e, 'mkdir: dot or dotdot not allowed');
@@ -497,7 +563,12 @@ function mkdir(req, res, next) {
     });
 }
 
-
+/**
+ * Remove a Directory
+ * @param req
+ * @param res
+ * @param next
+ */
 function rmdir(req, res, next) {
     if (req._object.name === ".") {
         req.log.warn(e, 'rmdir: dot not allowed');
@@ -536,7 +607,12 @@ function rmdir(req, res, next) {
     });
 }
 
-
+/**
+ * Read From Directory
+ * @param req
+ * @param res
+ * @param next
+ */
 function readdir(req, res, next) {
     var dir = FILE_HANDLES[req.dir];
     fs.readdir(dir, function (err, files) {
@@ -562,7 +638,12 @@ function readdir(req, res, next) {
     });
 }
 
-
+/**
+ * Extended read from directory
+ * @param req
+ * @param res
+ * @param next
+ */
 function readdirplus(req, res, next) {
     var dir = FILE_HANDLES[req.dir];
     fs.readdir(dir, function (err, files) {
@@ -624,7 +705,12 @@ function readdirplus(req, res, next) {
     });
 }
 
-
+/**
+ * Create Link to an object
+ * @param req
+ * @param res
+ * @param next
+ */
 function link(req, res, next) {
     var f = FILE_HANDLES[req.file];
     var dir = FILE_HANDLES[req.link.dir];
@@ -647,7 +733,12 @@ function link(req, res, next) {
     });
 }
 
-
+/**
+ * Read from symbolic link
+ * @param req
+ * @param res
+ * @param next
+ */
 function readlink(req, res, next) {
     var f = FILE_HANDLES[req.symlink];
 
@@ -670,7 +761,12 @@ function readlink(req, res, next) {
     });
 }
 
-
+/**
+ * Create a symbolic link
+ * @param req
+ * @param res
+ * @param next
+ */
 function symlink(req, res, next) {
     var dir = FILE_HANDLES[req.where.dir];
     var slink = path.join(dir, req.where.name);
@@ -721,7 +817,12 @@ function symlink(req, res, next) {
     });
 }
 
-
+/**
+ * Remove a File
+ * @param req
+ * @param res
+ * @param next
+ */
 function remove(req, res, next) {
     var dir = FILE_HANDLES[req._object.dir];
     var nm = path.join(dir, req._object.name);
@@ -746,7 +847,12 @@ function remove(req, res, next) {
     });
 }
 
-
+/**
+ * Rename a File or Directory
+ * @param req
+ * @param res
+ * @param next
+ */
 function rename(req, res, next) {
     var fdir = FILE_HANDLES[req.from.dir];
     var fnm = path.join(fdir, req.from.name);
@@ -764,7 +870,12 @@ function rename(req, res, next) {
     });
 }
 
-
+/**
+ * Read From file
+ * @param req
+ * @param res
+ * @param next
+ */
 function read(req, res, next) {
     var f = FILE_HANDLES[req.file];
     fs.open(f, 'r', function (open_err, fd) {
@@ -798,7 +909,12 @@ function read(req, res, next) {
     });
 }
 
-
+/**
+ * Write to file
+ * @param req
+ * @param res
+ * @param next
+ */
 function write(req, res, next) {
     var f = FILE_HANDLES[req.file];
 
@@ -835,7 +951,12 @@ function write(req, res, next) {
     });
 }
 
-
+/**
+ * Commit cached data on a server to stable
+ * @param req
+ * @param res
+ * @param next
+ */
 function commit(req, res, next) {
     var f = FILE_HANDLES[req.file];
 
