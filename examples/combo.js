@@ -650,7 +650,7 @@ function readdirplus(req, res, next) {
         if (err) {
             nfs.handle_error(err, req, res, next);
         } else {
-            res.eof = (files.length < req.dircount) || true;
+            res.eof = files.length < req.dircount;
             res.setDirAttributes(req._stats);
 
             var barrier = vasync.barrier();
