@@ -1,38 +1,41 @@
 {
-    "name": "nfs",
-    "description": "Node.js bindings for NFS",
-    "version": "0.1.0",
-    "author": {
-        "name": "Joyent, Inc.",
-        "url": "http://joyent.com/"
-    },
-    "license": "MPL-2.0",
-    "repository": {
-        "type": "git",
-        "url": "git://github.com/joyent/node-nfs.git"
-    },
-    "bugs": {
-        "url": "https://github.com/joyent/node-nfs/issues"
-    },
-    "main": "lib/index.js",
-    "dependencies": {
-        "assert-plus": "0.1.4",
-        "clone": "0.1.10",
-        "oncrpc": "0.1.0",
-        "once": "1.2.0"
-    },
-    "devDependencies": {
-        "bunyan": "0.22.0",
-        "nodeunit": "0.8.1",
-        "nodeunit-plus": "0.0.1",
-        "node-uuid": "1.4.1",
-        "statvfs": "2.1.0",
-        "vasync": "1.4.0"
-    },
-    "scripts": {
-        "test": "for f in $(ls test/*.test.js) ; do nodeunit $f ; done"
-    },
-    "engines": {
-        "node" : ">=0.10.18 <0.12"
-    }
+  "name": "nfs",
+  "description": "Node.js bindings for NFS",
+  "version": "0.1.0",
+  "author": {
+    "name": "Joyent, Inc.",
+    "url": "http://joyent.com/"
+  },
+  "license": "MPL-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/joyent/node-nfs.git"
+  },
+  "bugs": {
+    "url": "https://github.com/joyent/node-nfs/issues"
+  },
+  "main": "lib/index.js",
+  "dependencies": {
+    "aliyun-sdk": "^1.7.6",
+    "assert-plus": "0.1.4",
+    "clone": "0.1.10",
+    "fs-extra": "^0.26.4",
+    "once": "1.2.0",
+    "oncrpc": "0.1.0",
+    "oss-upload-stream": "^1.1.1"
+  },
+  "devDependencies": {
+    "bunyan": "0.22.0",
+    "nodeunit": "0.8.1",
+    "nodeunit-plus": "0.0.1",
+    "node-uuid": "1.4.1",
+    "statvfs": "2.1.0",
+    "vasync": "1.4.0"
+  },
+  "scripts": {
+    "test": "for f in $(ls test/*.test.js) ; do nodeunit $f ; done"
+  },
+  "engines": {
+    "node": ">=0.10.18 <0.12"
+  }
 }

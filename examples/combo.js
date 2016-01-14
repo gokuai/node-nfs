@@ -4,7 +4,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-var fs = require('fs');
+var fs = require('fs-extra');
 var path = require('path');
 
 var assert = require('assert-plus');
@@ -14,6 +14,8 @@ var nfs = require('../lib');
 var rpc = require('oncrpc');
 var statvfs = require('statvfs');
 var vasync = require('vasync');
+var ALY = require('aliyun-sdk');
+var request = require('request');
 
 var sattr3 = require('../lib/nfs/sattr3');
 var fattr3 = require('../lib/nfs/fattr3');
@@ -22,10 +24,26 @@ var write_call = require('../lib/nfs/write_call');
 var murmur = require('./murmur3');
 
 ///--- Globals
-
 var FILE_HANDLES = {};
 var MOUNTS = {};
+var libOSS = new ALY.OSS({
+    "accessKeyId": 'ACSpY7WtwtOZJYFG',
+    "secretAccessKey": 'CjQwnI6peo',
+    "endpoint": 'http://oss-cn-hangzhou.aliyuncs.com',
+    "apiVersion": "2013-10-15"
+});
+var ossStream = require('oss-upload-stream')(libOSS);
+var bucket = 'gktest2';
 
+var sqlite3 = require('sqlite3').verbose();
+var db = new sqlite3.Database('nfs.db');
+
+db.run("CREATE TABLE if not exists NFS (info TEXT)");
+
+//db.each("SELECT rowid AS id, info FROM lorem", function (err, row) {
+//    console.log(row.id + ": " + row.info);
+//});
+//});
 
 ////--- Private Functions
 /**
@@ -127,7 +145,8 @@ function check_fh_table(req, res, next) {
  * @param next
  */
 function get_attr(req, res, next) {
-    var f = FILE_HANDLES[req.object]
+    var f = FILE_HANDLES[req.object];
+    //console.log('get_attr', req.toString(), f);
     fs.lstat(f, function (err, stats) {
         if (err) {
             req.log.warn(err, 'get_attr: lstat failed');
@@ -400,7 +419,7 @@ function create(req, res, next) {
 
     // fail exclusive create
     if (req.how === create_call.create_how.EXCLUSIVE) {
-        req.log.warn(e, 'create: exclusive allowed');
+        req.log.warn('create: exclusive allowed', req.toString());
         res.error(nfs.NFS3ERR_NOTSUPP);
         next(false);
         return;
@@ -660,7 +679,7 @@ function readdirplus(req, res, next) {
                 if (error) {
                     nfs.handle_error(error, req, res, next);
                 } else {
-                    console.log('res', res.toString());
+                    //console.log('res', res.toString());
                     res.send();
                     next();
                 }
@@ -878,10 +897,47 @@ function rename(req, res, next) {
  */
 function read(req, res, next) {
     var f = FILE_HANDLES[req.file];
+    console.log('read req.toString()', req.toString(), f);
+    var filepath = path.join('/Users/Meteor/workspace_test/node-nfs/temp', path.basename(f));
+
+    var params = {
+        Bucket: 'gktest2',
+        Key: 'oss_api-reference.pdf'
+    };
+    var redirUrl = libOSS.getSignedUrl('getObject', params);
+
     fs.open(f, 'r', function (open_err, fd) {
         if (open_err) {
-            nfs.handle_error(open_err, req, res, next);
-            return;
+            libOSS.headObject(params, function (oss_err) {
+                    if (oss_err) {
+                        nfs.handle_error(oss_err, req, res, next);
+                    } else {
+                        var tempDownload = request.get(redirUrl);
+                        tempDownload.on('response', function (response) {
+                            if (response.statusCode == 200) {
+                                tempDownload.pipe(fs.createWriteStream(filepath));
+
+                            } else {
+                                //以后处理
+                                nfs.handle_error(oss_err, req, res, next);
+                            }
+                        });
+                        tempDownload.on('error', function (err) {
+                            console.log(err);
+                            nfs.handle_error(oss_err, req, res, next);
+                            var stmt = db.prepare("INSERT INTO NFS VALUES (?)");
+                            for (var i = 0; i < 10; i++) {
+                                stmt.run("Ipsum " + i);
+                            }
+                            stmt.finalize();
+                        });
+                    }
+                }
+            );
+
+            //暂时先不返回
+            //nfs.handle_error(open_err, req, res, next);
+            //return;
         }
 
         res.data = new Buffer(req.count);
@@ -902,6 +958,7 @@ function read(req, res, next) {
                 fs.closeSync(fd);
                 res.count = n;
                 res.eof = eof;
+                console.log('read res', res.toString());
                 res.send();
                 next();
             }
@@ -917,7 +974,10 @@ function read(req, res, next) {
  */
 function write(req, res, next) {
     var f = FILE_HANDLES[req.file];
-
+    var filename = path.basename(f);
+    if (filename.indexOf(".") != 0) {
+        console.log('write f req', f, req.toString());
+    }
     fs.open(f, 'r+', function (open_err, fd) {
         if (open_err) {
             nfs.handle_error(open_err, req, res, next);
@@ -943,6 +1003,24 @@ function write(req, res, next) {
                     // write with stable == FILE_SYNC.
                     res.committed = write_call.stable_how.FILE_SYNC;
 
+                    //var upload = ossStream.upload({
+                    //    "Bucket": bucket,
+                    //    "Key": f
+                    //});
+                    //// Handle errors.
+                    //upload.on('error', function (error) {
+                    //    console.log('ossStream error', error);
+                    //});
+                    //// Handle upload completion.
+                    //upload.on('uploaded', function (details) {
+                    //    console.log('ossStream uploaded', details);
+                    //});
+                    //// Pipe the incoming filestream through compression, and up to Aliyun OSS.
+                    //fs.createReadStream(f).pipe(upload);
+
+                    if (filename.indexOf(".") != 0) {
+                        console.log('write res', res.toString());
+                    }
                     res.send();
                     next();
                 });

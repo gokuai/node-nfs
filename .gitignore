@@ -9,3 +9,4 @@ cscope.out
 smf/manifests/*.xml
 .idea
 nfs.log
+nfs.db
