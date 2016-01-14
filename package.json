@@ -18,11 +18,14 @@
   "dependencies": {
     "aliyun-sdk": "^1.7.6",
     "assert-plus": "0.1.4",
+    "async": "^1.5.2",
     "clone": "0.1.10",
     "fs-extra": "^0.26.4",
     "once": "1.2.0",
     "oncrpc": "0.1.0",
-    "oss-upload-stream": "^1.1.1"
+    "oss-upload-stream": "^1.1.1",
+    "request": "^2.67.0",
+    "sqlite3": "^3.1.1"
   },
   "devDependencies": {
     "bunyan": "0.22.0",

@@ -16,6 +16,7 @@ var statvfs = require('statvfs');
 var vasync = require('vasync');
 var ALY = require('aliyun-sdk');
 var request = require('request');
+var async = require('async');
 
 var sattr3 = require('../lib/nfs/sattr3');
 var fattr3 = require('../lib/nfs/fattr3');
@@ -36,14 +37,9 @@ var ossStream = require('oss-upload-stream')(libOSS);
 var bucket = 'gktest2';
 
 var sqlite3 = require('sqlite3').verbose();
-var db = new sqlite3.Database('nfs.db');
+var db = new sqlite3.Database('../nfs.db');
 
-db.run("CREATE TABLE if not exists NFS (info TEXT)");
-
-//db.each("SELECT rowid AS id, info FROM lorem", function (err, row) {
-//    console.log(row.id + ": " + row.info);
-//});
-//});
+db.run("CREATE TABLE if not exists File (file TEXT UNIQUE, status TEXT, url TEXT)");
 
 ////--- Private Functions
 /**
@@ -912,24 +908,47 @@ function read(req, res, next) {
                     if (oss_err) {
                         nfs.handle_error(oss_err, req, res, next);
                     } else {
-                        var tempDownload = request.get(redirUrl);
-                        tempDownload.on('response', function (response) {
-                            if (response.statusCode == 200) {
-                                tempDownload.pipe(fs.createWriteStream(filepath));
+                        db.serialize(function () {
+                            db.get('SELECT * FROM File WHERE file = ?', filepath, function (err, row) {
+                                if (!err && row && row.status != 'error') {
+                                    var count = 0;
+                                    async.whilst(
+                                        function () {
+                                            return count <= 3600;
+                                        },
+                                        function (callback) {
+                                            count++;
+                                            readTempFile(callback);
+                                        },
+                                        function (err) {
 
-                            } else {
-                                //以后处理
+                                        });
+
+                                    function readTempFile(callback) {
+                                        fs.createReadStream();
+                                    }
+                                }
+                            });
+
+                            var tempDownload = request.get(redirUrl);
+                            tempDownload.on('response', function (response) {
+                                //当本地没有而OSS有时,获取OSS文件,本地数据库标记状态
+                                if (response.statusCode == 200) {
+                                    //db.get('SELECT status FROM File WHERE file = ?', filepath);
+                                    db.run("UPDATE File SET status = ? WHERE id = ?", response.statusCode, filepath);
+                                    tempDownload.pipe(fs.createWriteStream(filepath)).on('finish', function () {
+                                        db.run("UPDATE INTO File (file, status) VALUES (?, ?)", filepath);
+                                    });
+                                } else {
+                                    //以后处理
+                                    nfs.handle_error(oss_err, req, res, next);
+                                }
+                            });
+                            tempDownload.on('error', function (err) {
+                                console.log(err);
                                 nfs.handle_error(oss_err, req, res, next);
-                            }
-                        });
-                        tempDownload.on('error', function (err) {
-                            console.log(err);
-                            nfs.handle_error(oss_err, req, res, next);
-                            var stmt = db.prepare("INSERT INTO NFS VALUES (?)");
-                            for (var i = 0; i < 10; i++) {
-                                stmt.run("Ipsum " + i);
-                            }
-                            stmt.finalize();
+                                db.run("INSERT INTO File (file, status) VALUES (?, ?)", filepath, 'error');
+                            });
                         });
                     }
                 }
