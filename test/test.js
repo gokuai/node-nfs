@@ -53,15 +53,37 @@ var db = new sqlite3.Database('../nfs.db');
 //db.get('SELECT status FROM File WHERE file = ?', '/Users/Meteor', function (err, row) {
 //    console.log(row);
 //});
+//
+//db.serialize(function () {
+//    db.run("CREATE TABLE if not exists File (file TEXT UNIQUE, status TEXT, url TEXT)");
+//    //db.run("INSERT INTO File (file, status) VALUES (?, ?)", '/Users/Meteor', 200, function(err) {
+//    //    if (err) {
+//    //        console.log(err);
+//    //    }
+//    //});
+//    db.get('SELECT * FROM File WHERE file = ?', '/Users/Meteor', function (err, row) {
+//        console.log(err, row);
+//    });
+//});
 
-db.serialize(function () {
-    db.run("CREATE TABLE if not exists File (file TEXT UNIQUE, status TEXT, url TEXT)");
-    //db.run("INSERT INTO File (file, status) VALUES (?, ?)", '/Users/Meteor', 200, function(err) {
-    //    if (err) {
-    //        console.log(err);
-    //    }
-    //});
-    db.get('SELECT * FROM File WHERE file = ?', '/Users/Meteor', function (err, row) {
-        console.log(err, row);
-    });
-});
+//var async = require('async');
+//var count = 0;
+//
+//async.whilst(
+//    function () {
+//        return count < 5;
+//    },
+//    function (callback) {
+//        count++;
+//        //setTimeout(function () {
+//        //    callback(null, count);
+//        //}, 1000);
+//        callback(count, count);
+//    },
+//    function (err, n) {
+//        console.log(err, n);
+//        // 5 seconds have passed, n = 5
+//    }
+//);
+var libuuid = require('node-uuid');
+console.log(libuuid.v4());
