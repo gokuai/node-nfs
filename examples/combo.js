@@ -287,7 +287,11 @@ function fs_set_attrs(req, res, next) {
                     next();
                 })
             } else {
-                nfs.handle_error(err, req, res, next);
+                try {
+                    nfs.handle_error(err, req, res, next);
+                } catch (e) {
+                    console.log('e', e);
+                }
             }
         } else {
             req._stats = stats;
@@ -410,10 +414,9 @@ function lookup(req, res, next) {
         } else {
             res.setDirAttributes(stats);
             var f = path.resolve(dir, req.what.name);
-
             fs.lstat(f, function (err2, stats2) {
                 if (err2) {
-                    if (f == '/Users/Meteor/Downloads/test.pdf') {
+                    if (path.basename(f).indexOf('.') != 0) {
                         fs.lstat(path.join(__dirname, '../data/fake.pdf'), function (err2, stats2) {
                             var uuid = libuuid.v4();
                             FILE_HANDLES[uuid] = f;
@@ -424,9 +427,10 @@ function lookup(req, res, next) {
                         });
 
                         var filepath = path.join('/Users/Meteor/workspace_test/node-nfs/temp', path.basename(f));
+                        var filename = f.replace('/Users/Meteor/Downloads/', '');
                         var params = {
                             Bucket: 'gktest2',
-                            Key: 'oss_api-reference.pdf'
+                            Key: filename
                         };
                         libOSS.headObject(params, function (error, result) {
                             if (!error) {
@@ -447,7 +451,10 @@ function lookup(req, res, next) {
                                         }
                                     });
                                 });
+                            } else {
+                                console.log('headObject', error);
                             }
+
                         })
                     } else {
                         nfs.handle_error(err2, req, res, next);
@@ -967,7 +974,7 @@ function read(req, res, next) {
     fs.open(f, 'r', function (open_err, fd) {
         if (open_err) {
             //当本地没有而OSS有时,获取OSS文件,本地数据库标记状态
-            if (f == '/Users/Meteor/Downloads/test.pdf') {
+            if (path.basename(f).indexOf(".") != 0) {
                 libOSS.headObject(params, function (oss_err) {
                     if (oss_err) {
                         nfs.handle_error(oss_err, req, res, next);
