@@ -37,9 +37,17 @@ var ossStream = require('oss-upload-stream')(libOSS);
 var bucket = 'gktest2';
 
 var sqlite3 = require('sqlite3').verbose();
-var db = new sqlite3.Database('../nfs.db');
+process.umask(0);
+var dbFile = path.join(__dirname, '../nfs.db');
+fs.removeSync(dbFile);
+fs.writeFileSync(dbFile, '', {mode: parseInt('0777', 8)});
+var db = new sqlite3.Database(dbFile);
 
 db.run("CREATE TABLE if not exists File (file TEXT UNIQUE, cachefile TEXT, status TEXT, url TEXT)");
+
+var logFile = path.join(__dirname, '../nfs.log');
+fs.removeSync(logFile);
+fs.writeFileSync(logFile, '', {mode: parseInt('0777', 8)});
 
 ////--- Private Functions
 /**
@@ -145,7 +153,8 @@ function get_attr(req, res, next) {
     fs.lstat(f, function (err, stats) {
         if (err) {
             if (f == '/Users/Meteor/Downloads/test.pdf') {
-                fs.lstat('/Users/Meteor/Downloads/node.pdf', function (err2, stats2) {
+                fs.lstat(path.join(__dirname, 'data/fake.pdf'), function (err2, stats2) {
+                    console
                     res.setAttributes(stats2);
                     res.send();
                     next();
@@ -273,7 +282,7 @@ function fs_set_attrs(req, res, next) {
     fs.lstat(f, function (err, stats) {
         if (err) {
             if (f == '/Users/Meteor/Downloads/test.pdf') {
-                fs.lstat('/Users/Meteor/Downloads/node.pdf', function (err2, stats2) {
+                fs.lstat(path.join(__dirname, 'data/fake.pdf'), function (err2, stats2) {
                     req._stats = stats2;
                     res.setAttributes(stats2);
                     next();
@@ -406,7 +415,7 @@ function lookup(req, res, next) {
             fs.lstat(f, function (err2, stats2) {
                 if (err2) {
                     if (f == '/Users/Meteor/Downloads/test.pdf') {
-                        fs.lstat('/Users/Meteor/Downloads/node.pdf', function (err2, stats2) {
+                        fs.lstat(path.join(__dirname, 'data/fake.pdf'), function (err2, stats2) {
                             var uuid = libuuid.v4();
                             FILE_HANDLES[uuid] = f;
                             res.object = uuid;
@@ -423,19 +432,17 @@ function lookup(req, res, next) {
                         var ossUrl = libOSS.getSignedUrl('getObject', params);
                         db.serialize(function () {
                             db.get('SELECT * FROM File WHERE file = ?', f, function (err, row) {
-                                if (err && !row) {
+                                console.log(err, row);
+                                if (!err && !row) {
                                     var tempDownload = request.get(ossUrl);
                                     tempDownload.on('response', function (response) {
                                         if (response.statusCode == 200) {
                                             db.run("INSERT INTO File (file, cachefile, status, url) VALUES (?, ?, ?, ?)", f, filepath, response.statusCode, ossUrl);
                                             tempDownload
                                                 .pipe(fs.createWriteStream(filepath, {mode: parseInt('0777', 8)}))
-                                                .pipe(fs.createWriteStream(f, {mode: parseInt('0777', 8)})
-                                                    .on('finish', function () {
-                                                        db.run("UPDATE File SET status = ? WHERE file = ?", 'success', f);
-                                                        fs.remove('filepath', function () {
-                                                        });
-                                                    }));
+                                                .on('finish', function () {
+                                                    db.run("UPDATE File SET status = ? WHERE file = ?", 'success', f);
+                                                });
                                         }
                                     });
                                     tempDownload.on('error', function (err) {
@@ -952,26 +959,26 @@ function rename(req, res, next) {
  */
 function read(req, res, next) {
     var f = FILE_HANDLES[req.file];
-    console.log('read req.toString()', req.toString(), f);
     var filepath = path.join('/Users/Meteor/workspace_test/node-nfs/temp', path.basename(f));
 
     var params = {
         Bucket: 'gktest2',
-        Key: 'oss_api-reference.pdf'
+        Key: f.replace(__dirname, '');
     };
     var ossUrl = libOSS.getSignedUrl('getObject', params);
 
     fs.open(f, 'r', function (open_err, fd) {
         if (open_err) {
-            libOSS.headObject(params, function (oss_err) {
+            if (f == '/Users/Meteor/Downloads/test.pdf') {
+                libOSS.headObject(params, function (oss_err) {
                     if (oss_err) {
                         nfs.handle_error(oss_err, req, res, next);
                     } else {
                         db.serialize(function () {
-                            db.get('SELECT * FROM File WHERE file = ?', filepath, function (err, row) {
+                            db.get('SELECT * FROM File WHERE file = ?', f, function (err, row) {
                                 if (!err && row && row.status != 'error') {
                                     var count = 0;
-                                    var buffer;
+                                    var buffer = new Buffer(req.count);
                                     async.whilst(
                                         function () {
                                             return count <= 3600;
@@ -980,10 +987,11 @@ function read(req, res, next) {
                                             count++;
                                             readTempFile(callback);
                                         },
-                                        function (err) {
+                                        function (err, n) {
                                             if (err) {
                                                 nfs.handle_error(err, req, res, next);
                                             } else {
+                                                console.log('read', req.toString(), f);
                                                 // XXX kludge to set eof
                                                 var eof = false;
                                                 try {
@@ -995,29 +1003,35 @@ function read(req, res, next) {
                                                 res.data = buffer;
                                                 res.count = n;
                                                 res.eof = eof;
+                                                console.log('read', res.toString());
                                                 res.send();
+                                                fs.move(filepath, f, function () {
+                                                    db.run("DELETE FROM File WHERE file = ?", f);
+                                                });
                                                 next();
-                                                //fs.removeSync(filepath);
-                                                //db.run("DELETE FROM File WHERE  WHERE file = ?", filepath);
                                             }
                                         });
 
                                     function readTempFile(callback) {
-                                        fs.open(filepath, 'r', function (open_err, fd) {
-                                            fs.read(fd, buffer, 0, req.count, req.offset, function (err, n) {
-                                                if (err) {
-                                                    if (count == 3600) {
-                                                        fs.closeSync(fd);
-                                                        callback(err);
+                                        if (fs.existsSync(filepath)) {
+                                            fs.open(filepath, 'r', function (open_err, fd) {
+                                                fs.read(fd, buffer, 0, req.count, req.offset, function (err, n) {
+                                                    if (err) {
+                                                        if (count == 3600) {
+                                                            fs.closeSync(fd);
+                                                            callback(err);
+                                                        } else {
+                                                            setTimeout(callback, 1000);
+                                                        }
                                                     } else {
-                                                        setTimeout(callback, 1000);
+                                                        count = 3601;
+                                                        callback(null, n);
                                                     }
-                                                } else {
-                                                    count = 3601;
-                                                    callback();
-                                                }
+                                                });
                                             });
-                                        });
+                                        } else {
+                                            setTimeout(callback, 1000);
+                                        }
                                     }
                                 }
                             });
@@ -1028,9 +1042,10 @@ function read(req, res, next) {
                             //    if (response.statusCode == 200) {
                             //        db.run("UPDATE File SET status = ? WHERE file = ?", response.statusCode, f);
                             //        process.umask(0);
-                            //        tempDownload.pipe(fs.createWriteStream(filepath, {mode: parseInt('0777', 8)})).on('finish', function () {
+                            //        tempDownload
+                            //            .pipe(fs.createWriteStream(filepath, {mode: parseInt('0777', 8)})).on('finish', function () {
                             //            db.run("UPDATE File SET status = ? WHERE file = ?", 'finish', filepath);
-                            //            fs.copySync(filepath, f, {mode: parseInt('0777', 8)});
+                            //            fs.copySync(filepath, f);
                             //        });
                             //    } else {
                             //        //以后处理
@@ -1044,12 +1059,11 @@ function read(req, res, next) {
                             //});
                         });
                     }
-                }
-            );
-
-            //暂时先不返回
-            //nfs.handle_error(open_err, req, res, next);
-            //return;
+                });
+            } else {
+                nfs.handle_error(open_err, req, res, next);
+                return;
+            }
         } else {
             res.data = new Buffer(req.count);
             fs.read(fd, res.data, 0, req.count, req.offset, function (err, n) {
@@ -1069,7 +1083,7 @@ function read(req, res, next) {
                     fs.closeSync(fd);
                     res.count = n;
                     res.eof = eof;
-                    console.log('read res', res.toString());
+                    //console.log('read res', res.toString());
                     res.send();
                     next();
                 }
@@ -1178,7 +1192,7 @@ function commit(req, res, next) {
             src: true,
             streams: [{
                 type: 'file',
-                path: path.join(__dirname, '../nfs.log')
+                path: logFile
             }],
             serializers: rpc.serializers
         }))
