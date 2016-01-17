@@ -153,8 +153,7 @@ function get_attr(req, res, next) {
     fs.lstat(f, function (err, stats) {
         if (err) {
             if (f == '/Users/Meteor/Downloads/test.pdf') {
-                fs.lstat(path.join(__dirname, 'data/fake.pdf'), function (err2, stats2) {
-                    console
+                fs.lstat(path.join(__dirname, '../data/fake.pdf'), function (err2, stats2) {
                     res.setAttributes(stats2);
                     res.send();
                     next();
@@ -282,7 +281,7 @@ function fs_set_attrs(req, res, next) {
     fs.lstat(f, function (err, stats) {
         if (err) {
             if (f == '/Users/Meteor/Downloads/test.pdf') {
-                fs.lstat(path.join(__dirname, 'data/fake.pdf'), function (err2, stats2) {
+                fs.lstat(path.join(__dirname, '../data/fake.pdf'), function (err2, stats2) {
                     req._stats = stats2;
                     res.setAttributes(stats2);
                     next();
@@ -415,7 +414,7 @@ function lookup(req, res, next) {
             fs.lstat(f, function (err2, stats2) {
                 if (err2) {
                     if (f == '/Users/Meteor/Downloads/test.pdf') {
-                        fs.lstat(path.join(__dirname, 'data/fake.pdf'), function (err2, stats2) {
+                        fs.lstat(path.join(__dirname, '../data/fake.pdf'), function (err2, stats2) {
                             var uuid = libuuid.v4();
                             FILE_HANDLES[uuid] = f;
                             res.object = uuid;
@@ -429,30 +428,27 @@ function lookup(req, res, next) {
                             Bucket: 'gktest2',
                             Key: 'oss_api-reference.pdf'
                         };
-                        var ossUrl = libOSS.getSignedUrl('getObject', params);
-                        db.serialize(function () {
-                            db.get('SELECT * FROM File WHERE file = ?', f, function (err, row) {
-                                console.log(err, row);
-                                if (!err && !row) {
-                                    var tempDownload = request.get(ossUrl);
-                                    tempDownload.on('response', function (response) {
-                                        if (response.statusCode == 200) {
-                                            db.run("INSERT INTO File (file, cachefile, status, url) VALUES (?, ?, ?, ?)", f, filepath, response.statusCode, ossUrl);
-                                            tempDownload
+                        libOSS.headObject(params, function (error, result) {
+                            if (!error) {
+                                var ossUrl = libOSS.getSignedUrl('getObject', params);
+                                db.serialize(function () {
+                                    db.get('SELECT * FROM File WHERE file = ?', f, function (err, row) {
+                                        if (!err && !row) {
+                                            request.get(ossUrl)
                                                 .pipe(fs.createWriteStream(filepath, {mode: parseInt('0777', 8)}))
                                                 .on('finish', function () {
-                                                    db.run("UPDATE File SET status = ? WHERE file = ?", 'success', f);
+                                                    db.get('SELECT * FROM File WHERE file = ?', f, function (err, row) {
+                                                        if (!err && !row) {
+                                                            db.run("INSERT INTO File (file, cachefile, status, url) VALUES (?, ?, ?, ?)", f, filepath, 200, ossUrl);
+                                                        }
+                                                    })
+                                                    //db.run("UPDATE File SET status = ? WHERE file = ?", 'success', f);
                                                 });
                                         }
                                     });
-                                    tempDownload.on('error', function (err) {
-                                        console.log(err);
-                                        nfs.handle_error(oss_err, req, res, next);
-                                        db.run("INSERT INTO File (file, cachefile, status, url) VALUES (?, ?, ?, ?)", f, filepath, 'error', ossUrl);
-                                    });
-                                }
-                            });
-                        });
+                                });
+                            }
+                        })
                     } else {
                         nfs.handle_error(err2, req, res, next);
                     }
@@ -959,16 +955,18 @@ function rename(req, res, next) {
  */
 function read(req, res, next) {
     var f = FILE_HANDLES[req.file];
-    var filepath = path.join('/Users/Meteor/workspace_test/node-nfs/temp', path.basename(f));
+    var filepath = path.join(__dirname, '../temp', path.basename(f));
 
+    var filename = f.replace('/Users/Meteor/Downloads/', '');
     var params = {
         Bucket: 'gktest2',
-        Key: f.replace(__dirname + path.sep, '')
+        Key: filename
     };
     var ossUrl = libOSS.getSignedUrl('getObject', params);
 
     fs.open(f, 'r', function (open_err, fd) {
         if (open_err) {
+            //当本地没有而OSS有时,获取OSS文件,本地数据库标记状态
             if (f == '/Users/Meteor/Downloads/test.pdf') {
                 libOSS.headObject(params, function (oss_err) {
                     if (oss_err) {
@@ -991,7 +989,7 @@ function read(req, res, next) {
                                             if (err) {
                                                 nfs.handle_error(err, req, res, next);
                                             } else {
-                                                console.log('read', req.toString(), f);
+                                                console.log('read', req.toString(), f, n);
                                                 // XXX kludge to set eof
                                                 var eof = false;
                                                 try {
@@ -1011,8 +1009,8 @@ function read(req, res, next) {
                                                 next();
                                             }
                                         });
-
                                     function readTempFile(callback) {
+                                        console.log('count', count);
                                         if (fs.existsSync(filepath)) {
                                             fs.open(filepath, 'r', function (open_err, fd) {
                                                 fs.read(fd, buffer, 0, req.count, req.offset, function (err, n) {
@@ -1034,29 +1032,11 @@ function read(req, res, next) {
                                         }
                                     }
                                 }
+                                //else {
+                                //    nfs.handle_error(open_err, req, res, next);
+                                //    return;
+                                //}
                             });
-
-                            //var tempDownload = request.get(ossUrl);
-                            //tempDownload.on('response', function (response) {
-                            //    //当本地没有而OSS有时,获取OSS文件,本地数据库标记状态
-                            //    if (response.statusCode == 200) {
-                            //        db.run("UPDATE File SET status = ? WHERE file = ?", response.statusCode, f);
-                            //        process.umask(0);
-                            //        tempDownload
-                            //            .pipe(fs.createWriteStream(filepath, {mode: parseInt('0777', 8)})).on('finish', function () {
-                            //            db.run("UPDATE File SET status = ? WHERE file = ?", 'finish', filepath);
-                            //            fs.copySync(filepath, f);
-                            //        });
-                            //    } else {
-                            //        //以后处理
-                            //        nfs.handle_error(oss_err, req, res, next);
-                            //    }
-                            //});
-                            //tempDownload.on('error', function (err) {
-                            //    console.log(err);
-                            //    nfs.handle_error(oss_err, req, res, next);
-                            //    db.run("INSERT INTO File (file, cachefile, status, url) VALUES (?, ?, ?, ?)", f, filepath, 'error', ossUrl);
-                            //});
                         });
                     }
                 });
@@ -1064,6 +1044,7 @@ function read(req, res, next) {
                 nfs.handle_error(open_err, req, res, next);
                 return;
             }
+
         } else {
             res.data = new Buffer(req.count);
             fs.read(fd, res.data, 0, req.count, req.offset, function (err, n) {

@@ -87,3 +87,25 @@ var db = new sqlite3.Database('../nfs.db');
 //);
 var libuuid = require('node-uuid');
 console.log(libuuid.v4());
+
+//var tempDownload = request.get(ossUrl);
+//tempDownload.on('response', function (response) {
+//    //当本地没有而OSS有时,获取OSS文件,本地数据库标记状态
+//    if (response.statusCode == 200) {
+//        db.run("UPDATE File SET status = ? WHERE file = ?", response.statusCode, f);
+//        process.umask(0);
+//        tempDownload
+//            .pipe(fs.createWriteStream(filepath, {mode: parseInt('0777', 8)})).on('finish', function () {
+//            db.run("UPDATE File SET status = ? WHERE file = ?", 'finish', filepath);
+//            fs.copySync(filepath, f);
+//        });
+//    } else {
+//        //以后处理
+//        nfs.handle_error(oss_err, req, res, next);
+//    }
+//});
+//tempDownload.on('error', function (err) {
+//    console.log(err);
+//    nfs.handle_error(oss_err, req, res, next);
+//    db.run("INSERT INTO File (file, cachefile, status, url) VALUES (?, ?, ?, ?)", f, filepath, 'error', ossUrl);
+//});
