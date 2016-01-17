@@ -963,7 +963,7 @@ function read(req, res, next) {
 
     var params = {
         Bucket: 'gktest2',
-        Key: f.replace(__dirname, '');
+        Key: f.replace(__dirname + path.sep, '')
     };
     var ossUrl = libOSS.getSignedUrl('getObject', params);
 
