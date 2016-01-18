@@ -429,7 +429,7 @@ function lookup(req, res, next) {
                         var filepath = path.join('/Users/Meteor/workspace_test/node-nfs/temp', path.basename(f));
                         var filename = f.replace('/Users/Meteor/Downloads/', '');
                         var params = {
-                            Bucket: 'gktest2',
+                            Bucket: bucket,
                             Key: filename
                         };
                         libOSS.headObject(params, function (error, result) {
@@ -966,7 +966,7 @@ function read(req, res, next) {
 
     var filename = f.replace('/Users/Meteor/Downloads/', '');
     var params = {
-        Bucket: 'gktest2',
+        Bucket: bucket,
         Key: filename
     };
     var ossUrl = libOSS.getSignedUrl('getObject', params);
