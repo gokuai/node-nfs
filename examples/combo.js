@@ -280,19 +280,17 @@ function fs_set_attrs(req, res, next) {
 
     fs.lstat(f, function (err, stats) {
         if (err) {
-            //if (f == '/Users/Meteor/Downloads/test.pdf') {
-            fs.lstat(path.join(__dirname, '../data/fake.pdf'), function (err2, stats2) {
-                req._stats = stats2;
-                res.setAttributes(stats2);
-                next();
-            });
-            //} else {
-            //    try {
-            //        nfs.handle_error(err, req, res, next);
-            //    } catch (e) {
-            //        console.log('e', e);
-            //    }
-            //}
+            if (f == '/Users/Meteor/Downloads/test.pdf') {
+                fs.lstat(path.join(__dirname, '../data/fake.pdf'), function (err2, stats2) {
+                    req._stats = stats2;
+                    res.setAttributes(stats2);
+                    next();
+                });
+            } else {
+                res.error(nfs.NFS3ERR_STALE);
+                next(false);
+                //nfs.handle_error(err, req, res, next);
+            }
         } else {
             req._stats = stats;
             res.setAttributes(stats);
@@ -432,33 +430,37 @@ function lookup(req, res, next) {
                             Bucket: bucket,
                             Key: filename
                         };
-                        libOSS.headObject(params, function (error, result) {
-                            if (!error && result) {
-                                var ossUrl = libOSS.getSignedUrl('getObject', params);
-                                db.serialize(function () {
-                                    db.get('SELECT * FROM File WHERE file = ?', f, function (err, row) {
-                                        if (!err && !row) {
-                                            db.run("INSERT INTO File (file, cachefile, status, url) VALUES (?, ?, ?, ?)", f, filepath, 200, ossUrl);
-                                            request.get(ossUrl)
-                                                .pipe(fs.createWriteStream(filepath, {mode: parseInt('0777', 8)}))
-                                                .on('finish', function () {
-                                                    db.get('SELECT * FROM File WHERE file = ?', f, function (err, row) {
-                                                        //移动文件
-                                                        if (!err && row) {
-                                                            fs.move(filepath, f, function () {
-                                                                db.run("UPDATE File SET status = ? WHERE file = ?", 'success', f);
-                                                            });
-                                                        }
-                                                    })
-                                                });
-                                        }
+                        try {
+                            libOSS.headObject(params, function (error, result) {
+                                if (!error && result) {
+                                    var ossUrl = libOSS.getSignedUrl('getObject', params);
+                                    db.serialize(function () {
+                                        db.get('SELECT * FROM File WHERE file = ?', f, function (err, row) {
+                                            if (!err && !row) {
+                                                db.run("INSERT INTO File (file, cachefile, status, url) VALUES (?, ?, ?, ?)", f, filepath, 200, ossUrl);
+                                                request.get(ossUrl)
+                                                    .pipe(fs.createWriteStream(filepath, {mode: parseInt('0777', 8)}))
+                                                    .on('finish', function () {
+                                                        db.get('SELECT * FROM File WHERE file = ?', f, function (err, row) {
+                                                            //移动文件
+                                                            if (!err && row) {
+                                                                fs.move(filepath, f, function () {
+                                                                    db.run("UPDATE File SET status = ? WHERE file = ?", 'success', f);
+                                                                });
+                                                            }
+                                                        })
+                                                    });
+                                            }
+                                        });
                                     });
-                                });
-                            } else {
-                                //console.log('headObject', error);
-                                next();
-                            }
-                        });
+                                } else {
+                                    //console.log('headObject', error);
+                                    next(false);
+                                }
+                            });
+                        } catch (e) {
+                            console.log('lookup error', e);
+                        }
                     } else {
                         nfs.handle_error(err2, req, res, next);
                     }
@@ -1164,7 +1166,7 @@ function commit(req, res, next) {
     function logger(name) {
         return (bunyan.createLogger({
             name: name,
-            level: process.env.LOG_LEVEL || 'debug',
+            level: process.env.LOG_LEVEL || 'error',
             src: true,
             streams: [{
                 type: 'file',
@@ -1241,15 +1243,15 @@ function commit(req, res, next) {
     mountd.on('after', after);
     nfsd.on('after', after);
 
-    //nfsd.on('uncaughtException', function (req, res, err) {
-    //    console.error('ERROR: %s', err.stack);
-    //    process.exit(1);
-    //});
+    nfsd.on('uncaughtException', function (req, res, err) {
+        console.error('ERROR: %s', err.stack);
+        //process.exit(1);
+    });
 
-    //mountd.on('uncaughtException', function (req, res, err) {
-    //    console.error('ERROR: %s', err.stack);
-    //    process.exit(1);
-    //});
+    mountd.on('uncaughtException', function (req, res, err) {
+        console.error('ERROR: %s', err.stack);
+        //process.exit(1);
+    });
 
     portmapd.start(function () {
         mountd.start(function () {
