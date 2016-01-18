@@ -438,15 +438,18 @@ function lookup(req, res, next) {
                                 db.serialize(function () {
                                     db.get('SELECT * FROM File WHERE file = ?', f, function (err, row) {
                                         if (!err && !row) {
+                                            db.run("INSERT INTO File (file, cachefile, status, url) VALUES (?, ?, ?, ?)", f, filepath, 200, ossUrl);
                                             request.get(ossUrl)
                                                 .pipe(fs.createWriteStream(filepath, {mode: parseInt('0777', 8)}))
                                                 .on('finish', function () {
                                                     db.get('SELECT * FROM File WHERE file = ?', f, function (err, row) {
-                                                        if (!err && !row) {
-                                                            db.run("INSERT INTO File (file, cachefile, status, url) VALUES (?, ?, ?, ?)", f, filepath, 200, ossUrl);
+                                                        //移动文件
+                                                        if (!err && row) {
+                                                            fs.move(filepath, f, function () {
+                                                                db.run("UPDATE File SET status = ? WHERE file = ?", 'success', f);
+                                                            });
                                                         }
                                                     })
-                                                    //db.run("UPDATE File SET status = ? WHERE file = ?", 'success', f);
                                                 });
                                         }
                                     });
@@ -962,8 +965,9 @@ function rename(req, res, next) {
  */
 function read(req, res, next) {
     var f = FILE_HANDLES[req.file];
+    fs.ensureDirSync(path.join(__dirname, '../temp'));
     var filepath = path.join(__dirname, '../temp', path.basename(f));
-
+    console.log('read req.toString()', req.toString(), f);
     var filename = f.replace('/Users/Meteor/Downloads/', '');
     var params = {
         Bucket: bucket,
@@ -973,83 +977,138 @@ function read(req, res, next) {
 
     fs.open(f, 'r', function (open_err, fd) {
         if (open_err) {
-            //当本地没有而OSS有时,获取OSS文件,本地数据库标记状态
+            //offset=0的第一次请求先判断数据库中的状况,如果完成了,读取mount目录下的文件,如果没有完成,等待直到完成.
             if (path.basename(f).indexOf(".") != 0) {
-                libOSS.headObject(params, function (oss_err) {
-                    if (oss_err) {
-                        nfs.handle_error(oss_err, req, res, next);
-                    } else {
-                        db.serialize(function () {
+                //if (req.offset == 0) {
+                db.serialize(function () {
+                    var count = 0;
+                    var buffer = new Buffer(req.count);
+                    async.whilst(
+                        function () {
+                            return count <= 3600;
+                        }, function (callback) {
                             db.get('SELECT * FROM File WHERE file = ?', f, function (err, row) {
-                                if (!err && row && row.status != 'error') {
-                                    var count = 0;
-                                    var buffer = new Buffer(req.count);
-                                    async.whilst(
-                                        function () {
-                                            return count <= 3600;
-                                        },
-                                        function (callback) {
-                                            count++;
-                                            readTempFile(callback);
-                                        },
-                                        function (err, n) {
-                                            if (err) {
-                                                nfs.handle_error(err, req, res, next);
-                                            } else {
-                                                console.log('read', req.toString(), f, n);
-                                                // XXX kludge to set eof
-                                                var eof = false;
-                                                try {
-                                                    var stats = fs.lstatSync(filepath);
-                                                    if (stats.size <= (req.offset + req.count))
-                                                        eof = true;
-                                                } catch (e) {
-                                                }
-                                                res.data = buffer;
-                                                res.count = n;
-                                                res.eof = eof;
-                                                console.log('read', res.toString());
-                                                res.send();
-                                                fs.move(filepath, f, function () {
-                                                    db.run("DELETE FROM File WHERE file = ?", f);
-                                                });
-                                                next();
-                                            }
-                                        });
-                                    function readTempFile(callback) {
-                                        console.log('count', count);
-                                        if (fs.existsSync(filepath)) {
-                                            fs.open(filepath, 'r', function (open_err, fd) {
-                                                fs.read(fd, buffer, 0, req.count, req.offset, function (err, n) {
-                                                    if (err) {
-                                                        if (count == 3600) {
-                                                            fs.closeSync(fd);
-                                                            callback(err);
-                                                        } else {
-                                                            setTimeout(callback, 1000);
-                                                        }
+                                if (!err && row && row.status == 'success') {
+                                    async.whilst(function () {
+                                        return count <= 3600;
+                                    }, function (callback) {
+                                        count++;
+                                        fs.open(f, 'r', function (open_err, fd) {
+                                            fs.read(fd, buffer, 0, req.count, req.offset, function (err, n) {
+                                                if (err) {
+                                                    if (count == 3600) {
+                                                        fs.closeSync(fd);
+                                                        callback(err);
                                                     } else {
-                                                        count = 3601;
-                                                        callback(null, n);
+                                                        setTimeout(callback, 1000);
                                                     }
-                                                });
+                                                } else {
+                                                    count = 3601;
+                                                    fs.closeSync(fd);
+                                                    callback(null, n);
+                                                }
                                             });
+                                        });
+                                    }, function (err, n) {
+                                        if (err) {
+                                            nfs.handle_error(err, req, res, next);
                                         } else {
-                                            setTimeout(callback, 1000);
+                                            // XXX kludge to set eof
+                                            var eof = false;
+                                            try {
+                                                var stats = fs.lstatSync(f);
+                                                if (stats.size <= (req.offset + req.count))
+                                                    eof = true;
+                                            } catch (e) {
+                                            }
+                                            res.data = buffer;
+                                            res.count = n;
+                                            res.eof = eof;
+                                            console.log('read res', res.toString());
+                                            res.send();
+                                            db.run("DELETE FROM File WHERE file = ?", f);
+                                            next();
                                         }
-                                    }
+                                    });
+                                } else {
+                                    setTimeout(callback, 1000);
                                 }
-                                //else {
-                                //    nfs.handle_error(open_err, req, res, next);
-                                //    return;
-                                //}
                             });
                         });
-                    }
                 });
+                //} else {
+                //    console.log('read req.offset:%s f:%s', req.offset, f);
+                //    next();
+                //}
+                //db.serialize(function () {
+                //    db.get('SELECT * FROM File WHERE file = ?', f, function (err, row) {
+                //        if (!err && row && row.status != 'error') {
+                //            var count = 0;
+                //            var buffer = new Buffer(req.count);
+                //            async.whilst(
+                //                function () {
+                //                    return count <= 3600;
+                //                },
+                //                function (callback) {
+                //                    count++;
+                //                    readTempFile(callback);
+                //                },
+                //                function (err, n) {
+                //                    console.log('err n', err, n);
+                //                    if (err) {
+                //                        nfs.handle_error(err, req, res, next);
+                //                    } else {
+                //                        console.log('read', req.toString(), f, n);
+                //                        // XXX kludge to set eof
+                //                        var eof = false;
+                //                        try {
+                //                            var stats = fs.lstatSync(filepath);
+                //                            if (stats.size <= (req.offset + req.count))
+                //                                eof = true;
+                //                        } catch (e) {
+                //                        }
+                //                        res.data = buffer;
+                //                        res.count = n;
+                //                        res.eof = eof;
+                //                        console.log('read res', res.toString());
+                //                        res.send();
+                //                        fs.move(filepath, f, function () {
+                //                            db.run("DELETE FROM File WHERE file = ?", f);
+                //                        });
+                //                        next();
+                //                    }
+                //                });
+                //            function readTempFile(callback) {
+                //                if (fs.existsSync(filepath)) {
+                //                    fs.open(filepath, 'r', function (open_err, fd) {
+                //                        fs.read(fd, buffer, 0, req.count, req.offset, function (err, n) {
+                //                            if (err) {
+                //                                if (count == 3600) {
+                //                                    fs.closeSync(fd);
+                //                                    callback(err);
+                //                                } else {
+                //                                    setTimeout(callback, 1000);
+                //                                }
+                //                            } else {
+                //                                count = 3601;
+                //                                fs.closeSync(fd);
+                //                                callback(null, n);
+                //                            }
+                //                        });
+                //                    });
+                //                } else {
+                //                    setTimeout(callback, 1000);
+                //                }
+                //            }
+                //        }
+                //        else {
+                //            return;
+                //        }
+                //    });
+                //});
             } else {
                 nfs.handle_error(open_err, req, res, next);
-                return;
+                next();
             }
 
         } else {
