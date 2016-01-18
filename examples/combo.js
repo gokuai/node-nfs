@@ -280,19 +280,19 @@ function fs_set_attrs(req, res, next) {
 
     fs.lstat(f, function (err, stats) {
         if (err) {
-            if (f == '/Users/Meteor/Downloads/test.pdf') {
-                fs.lstat(path.join(__dirname, '../data/fake.pdf'), function (err2, stats2) {
-                    req._stats = stats2;
-                    res.setAttributes(stats2);
-                    next();
-                })
-            } else {
-                try {
-                    nfs.handle_error(err, req, res, next);
-                } catch (e) {
-                    console.log('e', e);
-                }
-            }
+            //if (f == '/Users/Meteor/Downloads/test.pdf') {
+            fs.lstat(path.join(__dirname, '../data/fake.pdf'), function (err2, stats2) {
+                req._stats = stats2;
+                res.setAttributes(stats2);
+                next();
+            });
+            //} else {
+            //    try {
+            //        nfs.handle_error(err, req, res, next);
+            //    } catch (e) {
+            //        console.log('e', e);
+            //    }
+            //}
         } else {
             req._stats = stats;
             res.setAttributes(stats);
@@ -433,7 +433,7 @@ function lookup(req, res, next) {
                             Key: filename
                         };
                         libOSS.headObject(params, function (error, result) {
-                            if (!error) {
+                            if (!error && result) {
                                 var ossUrl = libOSS.getSignedUrl('getObject', params);
                                 db.serialize(function () {
                                     db.get('SELECT * FROM File WHERE file = ?', f, function (err, row) {
@@ -455,10 +455,10 @@ function lookup(req, res, next) {
                                     });
                                 });
                             } else {
-                                console.log('headObject', error);
+                                //console.log('headObject', error);
+                                next();
                             }
-
-                        })
+                        });
                     } else {
                         nfs.handle_error(err2, req, res, next);
                     }
@@ -967,7 +967,7 @@ function read(req, res, next) {
     var f = FILE_HANDLES[req.file];
     fs.ensureDirSync(path.join(__dirname, '../temp'));
     var filepath = path.join(__dirname, '../temp', path.basename(f));
-    console.log('read req.toString()', req.toString(), f);
+    //console.log('read req.toString()', req.toString(), f);
     var filename = f.replace('/Users/Meteor/Downloads/', '');
     var params = {
         Bucket: bucket,
@@ -979,7 +979,6 @@ function read(req, res, next) {
         if (open_err) {
             //offset=0的第一次请求先判断数据库中的状况,如果完成了,读取mount目录下的文件,如果没有完成,等待直到完成.
             if (path.basename(f).indexOf(".") != 0) {
-                //if (req.offset == 0) {
                 db.serialize(function () {
                     var count = 0;
                     var buffer = new Buffer(req.count);
@@ -1024,7 +1023,7 @@ function read(req, res, next) {
                                             res.data = buffer;
                                             res.count = n;
                                             res.eof = eof;
-                                            console.log('read res', res.toString());
+                                            //console.log('read res', res.toString());
                                             res.send();
                                             db.run("DELETE FROM File WHERE file = ?", f);
                                             next();
@@ -1036,76 +1035,6 @@ function read(req, res, next) {
                             });
                         });
                 });
-                //} else {
-                //    console.log('read req.offset:%s f:%s', req.offset, f);
-                //    next();
-                //}
-                //db.serialize(function () {
-                //    db.get('SELECT * FROM File WHERE file = ?', f, function (err, row) {
-                //        if (!err && row && row.status != 'error') {
-                //            var count = 0;
-                //            var buffer = new Buffer(req.count);
-                //            async.whilst(
-                //                function () {
-                //                    return count <= 3600;
-                //                },
-                //                function (callback) {
-                //                    count++;
-                //                    readTempFile(callback);
-                //                },
-                //                function (err, n) {
-                //                    console.log('err n', err, n);
-                //                    if (err) {
-                //                        nfs.handle_error(err, req, res, next);
-                //                    } else {
-                //                        console.log('read', req.toString(), f, n);
-                //                        // XXX kludge to set eof
-                //                        var eof = false;
-                //                        try {
-                //                            var stats = fs.lstatSync(filepath);
-                //                            if (stats.size <= (req.offset + req.count))
-                //                                eof = true;
-                //                        } catch (e) {
-                //                        }
-                //                        res.data = buffer;
-                //                        res.count = n;
-                //                        res.eof = eof;
-                //                        console.log('read res', res.toString());
-                //                        res.send();
-                //                        fs.move(filepath, f, function () {
-                //                            db.run("DELETE FROM File WHERE file = ?", f);
-                //                        });
-                //                        next();
-                //                    }
-                //                });
-                //            function readTempFile(callback) {
-                //                if (fs.existsSync(filepath)) {
-                //                    fs.open(filepath, 'r', function (open_err, fd) {
-                //                        fs.read(fd, buffer, 0, req.count, req.offset, function (err, n) {
-                //                            if (err) {
-                //                                if (count == 3600) {
-                //                                    fs.closeSync(fd);
-                //                                    callback(err);
-                //                                } else {
-                //                                    setTimeout(callback, 1000);
-                //                                }
-                //                            } else {
-                //                                count = 3601;
-                //                                fs.closeSync(fd);
-                //                                callback(null, n);
-                //                            }
-                //                        });
-                //                    });
-                //                } else {
-                //                    setTimeout(callback, 1000);
-                //                }
-                //            }
-                //        }
-                //        else {
-                //            return;
-                //        }
-                //    });
-                //});
             } else {
                 nfs.handle_error(open_err, req, res, next);
                 next();
@@ -1312,15 +1241,15 @@ function commit(req, res, next) {
     mountd.on('after', after);
     nfsd.on('after', after);
 
-    nfsd.on('uncaughtException', function (req, res, err) {
-        console.error('ERROR: %s', err.stack);
-        process.exit(1);
-    });
+    //nfsd.on('uncaughtException', function (req, res, err) {
+    //    console.error('ERROR: %s', err.stack);
+    //    process.exit(1);
+    //});
 
-    mountd.on('uncaughtException', function (req, res, err) {
-        console.error('ERROR: %s', err.stack);
-        process.exit(1);
-    });
+    //mountd.on('uncaughtException', function (req, res, err) {
+    //    console.error('ERROR: %s', err.stack);
+    //    process.exit(1);
+    //});
 
     portmapd.start(function () {
         mountd.start(function () {
