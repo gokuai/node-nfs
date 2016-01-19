@@ -33,7 +33,6 @@ var libOSS = new ALY.OSS({
     "endpoint": 'http://oss-cn-hangzhou.aliyuncs.com',
     "apiVersion": "2013-10-15"
 });
-var ossStream = require('oss-upload-stream')(libOSS);
 var bucket = 'gktest2';
 
 var sqlite3 = require('sqlite3').verbose();
@@ -44,6 +43,7 @@ fs.writeFileSync(dbFile, '', {mode: parseInt('0777', 8)});
 var db = new sqlite3.Database(dbFile);
 
 db.run("CREATE TABLE if not exists File (file TEXT UNIQUE, cachefile TEXT, status TEXT, url TEXT)");
+db.run("CREATE TABLE if not exists OSS (file TEXT UNIQUE, object TEXT, status TEXT, date TEXT)");
 
 var logFile = path.join(__dirname, '../nfs.log');
 fs.removeSync(logFile);
@@ -419,19 +419,22 @@ function lookup(req, res, next) {
                                 db.serialize(function () {
                                     db.get('SELECT * FROM File WHERE file = ?', f, function (err, row) {
                                         if (!err && !row) {
-                                            db.run("INSERT INTO File (file, cachefile, status, url) VALUES (?, ?, ?, ?)", f, filepath, 200, ossUrl);
-                                            request.get(ossUrl)
-                                                .pipe(fs.createWriteStream(filepath, {mode: parseInt('0777', 8)}))
-                                                .on('finish', function () {
-                                                    db.get('SELECT * FROM File WHERE file = ?', f, function (err, row) {
-                                                        //移动文件
-                                                        if (!err && row) {
-                                                            fs.move(filepath, f, function () {
-                                                                db.run("UPDATE File SET status = ? WHERE file = ?", 'success', f);
-                                                            });
-                                                        }
-                                                    })
-                                                });
+                                            if (!fs.existsSync(filepath)) {
+                                                db.run("INSERT INTO File (file, cachefile, status, url) VALUES (?, ?, ?, ?)", f, filepath, 200, ossUrl);
+
+                                                request.get(ossUrl)
+                                                    .pipe(fs.createWriteStream(filepath, {mode: parseInt('0777', 8)}))
+                                                    .on('finish', function () {
+                                                        db.get('SELECT * FROM File WHERE file = ?', f, function (err, row) {
+                                                            //移动文件
+                                                            if (!err && row) {
+                                                                fs.move(filepath, f, function () {
+                                                                    db.run("UPDATE File SET status = ? WHERE file = ?", 'success', f);
+                                                                });
+                                                            }
+                                                        })
+                                                    });
+                                            }
                                         }
                                     });
                                 });
@@ -1085,26 +1088,29 @@ function write(req, res, next) {
                     // write with stable == FILE_SYNC.
                     res.committed = write_call.stable_how.FILE_SYNC;
 
-                    //var upload = ossStream.upload({
-                    //    "Bucket": bucket,
-                    //    "Key": f
-                    //});
-                    //// Handle errors.
-                    //upload.on('error', function (error) {
-                    //    console.log('ossStream error', error);
-                    //});
-                    //// Handle upload completion.
-                    //upload.on('uploaded', function (details) {
-                    //    console.log('ossStream uploaded', details);
-                    //});
-                    //// Pipe the incoming filestream through compression, and up to Aliyun OSS.
-                    //fs.createReadStream(f).pipe(upload);
-
-                    if (filename.indexOf(".") != 0) {
-                        console.log('write res', res.toString());
-                    }
                     res.send();
                     next();
+                    if (filename.indexOf(".") != 0) {
+                        console.log('write res', res.toString());
+                        var object = f.replace('/Users/Meteor/Downloads/', '');
+                        db.serialize(function () {
+                            db.get('SELECT * FROM OSS WHERE file = ?', f, function (err, row) {
+                                if (err) {
+                                } else if (row) {
+                                    //update数据库, 当status状态是error时重置状态
+                                    if (row.status == 'error') {
+                                        db.run("UPDATE File SET status = ?, date = datetime('now', 'localtime') WHERE file = ?", '', f, function (err, row) {
+                                            console.log(err, row);
+                                        });
+                                    }
+                                } else {
+                                    db.run("INSERT INTO OSS (file, object, status, date) VALUES (?, ?, ?, datetime('now', 'localtime'))", f, object, '', function (err, row) {
+                                        console.log(err, row);
+                                    });
+                                }
+                            });
+                        });
+                    }
                 });
             }
         });
