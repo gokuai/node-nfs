@@ -10,3 +10,4 @@ smf/manifests/*.xml
 .idea
 nfs.log
 nfs.db
+queue.log

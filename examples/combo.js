@@ -38,16 +38,19 @@ var bucket = 'gktest2';
 var sqlite3 = require('sqlite3').verbose();
 process.umask(0);
 var dbFile = path.join(__dirname, '../nfs.db');
-fs.removeSync(dbFile);
-fs.writeFileSync(dbFile, '', {mode: parseInt('0777', 8)});
+//fs.removeSync(dbFile);
+if (!fs.existsSync(dbFile)) {
+    fs.writeFileSync(dbFile, '', {mode: parseInt('0777', 8)});
+}
 var db = new sqlite3.Database(dbFile);
-
 db.run("CREATE TABLE if not exists File (file TEXT UNIQUE, cachefile TEXT, status TEXT, url TEXT)");
-db.run("CREATE TABLE if not exists OSS (file TEXT UNIQUE, object TEXT, status TEXT, date TEXT)");
+db.run("CREATE TABLE if not exists OSS (file TEXT UNIQUE, object TEXT, status TEXT, count INTEGER, date TEXT)");
 
 var logFile = path.join(__dirname, '../nfs.log');
 fs.removeSync(logFile);
 fs.writeFileSync(logFile, '', {mode: parseInt('0777', 8)});
+
+require('./queue.js');
 
 ////--- Private Functions
 /**
