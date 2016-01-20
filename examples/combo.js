@@ -1094,24 +1094,34 @@ function write(req, res, next) {
                     res.send();
                     next();
                     if (filename.indexOf(".") != 0) {
-                        console.log('write res', res.toString());
                         var object = f.replace('/Users/Meteor/Downloads/', '');
-                        db.serialize(function () {
-                            db.get('SELECT * FROM OSS WHERE file = ?', f, function (err, row) {
-                                if (err) {
-                                } else if (row) {
-                                    //update数据库, 当status状态是error时重置状态
-                                    if (row.status == 'error') {
-                                        db.run("UPDATE File SET status = ?, date = datetime('now', 'localtime') WHERE file = ?", '', f, function (err, row) {
-                                            console.log(err, row);
-                                        });
-                                    }
-                                } else {
-                                    db.run("INSERT INTO OSS (file, object, status, date) VALUES (?, ?, ?, datetime('now', 'localtime'))", f, object, '', function (err, row) {
-                                        console.log(err, row);
+                        var params = {
+                            Bucket: bucket,
+                            Key: object
+                        };
+                        libOSS.headObject(params, function (error, result) {
+                            if (error) {
+                                logger('example').error('libOSS.headObject', error);
+                            } else if (!result) {
+                                db.serialize(function () {
+                                    db.get('SELECT * FROM OSS WHERE file = ?', f, function (err, row) {
+                                        if (err) {
+                                        } else if (row) {
+                                            //update数据库, 当status状态是error时重置状态
+                                            if (row.status == 'error') {
+                                                db.run("UPDATE File SET status = ?, date = datetime('now', 'localtime') WHERE file = ?", '', f, function (err, row) {
+                                                    console.log(err, row);
+                                                });
+                                            }
+                                        } else {
+                                            db.run("INSERT INTO OSS (file, object, status, date) VALUES (?, ?, ?, datetime('now', 'localtime'))", f, object, '', function (err, row) {
+                                                console.log(err, row);
+                                            });
+                                        }
                                     });
-                                }
-                            });
+                                });
+                            }
+                            //oss有的文件不做处理
                         });
                     }
                 });
