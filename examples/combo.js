@@ -473,7 +473,7 @@ function create(req, res, next) {
 
     // fail exclusive create
     if (req.how === create_call.create_how.EXCLUSIVE) {
-        req.log.warn('create: exclusive allowed', req.toString());
+        req.log.warn('create: exclusive allowed');
         res.error(nfs.NFS3ERR_NOTSUPP);
         next(false);
         return;
