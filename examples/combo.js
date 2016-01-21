@@ -1064,7 +1064,7 @@ function write(req, res, next) {
     var f = FILE_HANDLES[req.file];
     var filename = path.basename(f);
     if (filename.indexOf(".") != 0) {
-        console.log('write f req', f, req.toString());
+        req.log.debug('write f req', f, req.toString());
     }
     fs.open(f, 'r+', function (open_err, fd) {
         if (open_err) {
@@ -1101,8 +1101,7 @@ function write(req, res, next) {
                         };
                         libOSS.headObject(params, function (error, result) {
                             if (error) {
-                                logger('example').error('libOSS.headObject', error);
-                            } else if (!result) {
+                                req.log.error('libOSS.headObject', error);
                                 db.serialize(function () {
                                     db.get('SELECT * FROM OSS WHERE file = ?', f, function (err, row) {
                                         if (err) {
@@ -1110,12 +1109,12 @@ function write(req, res, next) {
                                             //update数据库, 当status状态是error时重置状态
                                             if (row.status == 'error') {
                                                 db.run("UPDATE File SET status = ?, date = datetime('now', 'localtime') WHERE file = ?", '', f, function (err, row) {
-                                                    console.log(err, row);
+                                                    req.log.error('write headObject', err, row);
                                                 });
                                             }
                                         } else {
                                             db.run("INSERT INTO OSS (file, object, status, date) VALUES (?, ?, ?, datetime('now', 'localtime'))", f, object, '', function (err, row) {
-                                                console.log(err, row);
+                                                req.log.error('write headObject', err, row);
                                             });
                                         }
                                     });
@@ -1229,11 +1228,11 @@ function commit(req, res, next) {
     var log = logger('audit');
 
     function after(name, req, res, err) {
-        log.info({
-            call: req.toString(),
-            reply: res.toString(),
-            err: err
-        }, '%s: handled', name);
+        //log.info({
+        //    call: req.toString(),
+        //    reply: res.toString(),
+        //    err: err
+        //}, '%s: handled', name);
     }
 
     portmapd.on('after', after);
