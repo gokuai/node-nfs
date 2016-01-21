@@ -563,7 +563,7 @@ function mknod(req, res, next) {
  */
 function mkdir(req, res, next) {
     if (req.where.name === "." || req.where.name === "..") {
-        req.log.warn(e, 'mkdir: dot or dotdot not allowed');
+        req.log.warn('mkdir: dot or dotdot not allowed');
         res.error(nfs.NFS3ERR_EXIST);
         next(false);
         return;
@@ -644,14 +644,14 @@ function mkdir(req, res, next) {
  */
 function rmdir(req, res, next) {
     if (req._object.name === ".") {
-        req.log.warn(e, 'rmdir: dot not allowed');
+        req.log.warn('rmdir: dot not allowed');
         res.error(nfs.NFS3ERR_INVAL);
         next(false);
         return;
     }
 
     if (req._object.name === "..") {
-        req.log.warn(e, 'rmdir: dotdot not allowed');
+        req.log.warn('rmdir: dotdot not allowed');
         res.error(nfs.NFS3ERR_EXIST);
         next(false);
         return;
