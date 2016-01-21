@@ -1,0 +1,8 @@
+--- 
+OSS:
+  accessKeyId: ACSpY7WtwtOZJYFG
+  apiVersion: "2013-10-15"
+  endpoint: "http://oss-cn-hangzhou.aliyuncs.com"
+  secretAccessKey: CjQwnI6peo
+  bucket: gktest2
+exports: /Users/Meteor/Downloads/

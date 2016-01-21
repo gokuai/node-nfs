@@ -6,11 +6,10 @@
 
 var fs = require('fs-extra');
 var path = require('path');
-
+var yaml = require('js-yaml');
 var assert = require('assert-plus');
 var bunyan = require('bunyan');
 var libuuid = require('node-uuid');
-var nfs = require('../lib');
 var rpc = require('oncrpc');
 var statvfs = require('statvfs');
 var vasync = require('vasync');
@@ -18,22 +17,28 @@ var ALY = require('aliyun-sdk');
 var request = require('request');
 var async = require('async');
 
+var nfs = require('../lib');
 var sattr3 = require('../lib/nfs/sattr3');
 var fattr3 = require('../lib/nfs/fattr3');
 var create_call = require('../lib/nfs/create_call');
 var write_call = require('../lib/nfs/write_call');
 var murmur = require('./murmur3');
+var config = yaml.safeLoad(fs.readFileSync(path.join(__dirname, 'config.yaml')));
 
 ///--- Globals
 var FILE_HANDLES = {};
 var MOUNTS = {};
 var libOSS = new ALY.OSS({
-    "accessKeyId": 'ACSpY7WtwtOZJYFG',
-    "secretAccessKey": 'CjQwnI6peo',
-    "endpoint": 'http://oss-cn-hangzhou.aliyuncs.com',
-    "apiVersion": "2013-10-15"
+    "accessKeyId": config.OSS['accessKeyId'],
+    "secretAccessKey": config.OSS['secretAccessKey'],
+    "endpoint": config.OSS['endpoint'],
+    "apiVersion": config.OSS['apiVersion']
 });
-var bucket = 'gktest2';
+var bucket = config.OSS['bucket'];
+var exportsPath = path.resolve(config['exports']);
+if (exportsPath[-1] != path.sep) {
+    exportsPath = exportsPath + path.sep
+}
 
 var sqlite3 = require('sqlite3').verbose();
 process.umask(0);
@@ -402,8 +407,8 @@ function lookup(req, res, next) {
             fs.lstat(f, function (err2, stats2) {
                 if (err2) {
                     if (path.basename(f).indexOf('.') != 0) {
-                        var filepath = path.join('/Users/Meteor/workspace_test/node-nfs/temp', path.basename(f));
-                        var filename = f.replace('/Users/Meteor/Downloads/', '');
+                        var filepath = path.join(__dirname, '../temp', path.basename(f));
+                        var filename = f.replace(exportsPath, '');
                         var params = {
                             Bucket: bucket,
                             Key: filename
@@ -952,9 +957,8 @@ function rename(req, res, next) {
 function read(req, res, next) {
     var f = FILE_HANDLES[req.file];
     fs.ensureDirSync(path.join(__dirname, '../temp'));
-    var filepath = path.join(__dirname, '../temp', path.basename(f));
     //console.log('read req.toString()', req.toString(), f);
-    var filename = f.replace('/Users/Meteor/Downloads/', '');
+    var filename = f.replace(exportsPath, '');
     var params = {
         Bucket: bucket,
         Key: filename
@@ -1094,7 +1098,7 @@ function write(req, res, next) {
                     res.send();
                     next();
                     if (filename.indexOf(".") != 0) {
-                        var object = f.replace('/Users/Meteor/Downloads/', '');
+                        var object = f.replace(exportsPath, '');
                         var params = {
                             Bucket: bucket,
                             Key: object
