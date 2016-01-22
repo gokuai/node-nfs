@@ -39,32 +39,35 @@ var textSched = later.parse.text('every 1 min');
 var timer = later.setInterval(upload, textSched);
 
 function upload() {
-    db.all("SELECT * FROM OSS", function (err, rows) {
-        if (!err && rows.length > 0) {
-            async.eachLimit(rows, 1, function (row, callback) {
-                if (row.file) {
-                    var upload = ossStream.upload({
-                        "Bucket": bucket,
-                        "Key": row.object
-                    });
-                    // Handle errors.
-                    upload.on('error', function (error) {
-                        logger.error('ossStream error', error);
-                        //db.run("update FROM OSS WHERE file = ?", row.object);
-                        row.count = row.count ? row.count + 1 : 1;
-                        db.run("UPDATE OSS SET status = ?, count = ?, date = datetime('now', 'localtime') WHERE file = ?", error.message, row.count, f);
-                        callback();
-                    });
-                    // Handle upload completion.
-                    upload.on('uploaded', function (details) {
-                        logger.info('ossStream uploaded', details);
-                        db.run("DELETE FROM OSS WHERE file = ?", row.file);
-                        callback();
-                    });
-                    // Pipe the incoming filestream through compression, and upload to Aliyun OSS.
-                    fs.createReadStream(row.file).pipe(upload);
-                }
-            });
-        }
-    });
+    db.serialize(function () {
+        db.all("SELECT * FROM OSS", function (err, rows) {
+            if (!err && rows.length > 0) {
+                async.eachLimit(rows, 1, function (row, callback) {
+                    if (row.file && row.status != 'start') {
+                        var upload = ossStream.upload({
+                            "Bucket": bucket,
+                            "Key": row.object
+                        });
+                        db.run("UPDATE File SET status = ? WHERE file = ?", 'start', row.file);
+                        // Handle errors.
+                        upload.on('error', function (error) {
+                            logger.error('ossStream error', error);
+                            //db.run("update FROM OSS WHERE file = ?", row.object);
+                            row.count = row.count ? row.count + 1 : 1;
+                            db.run("UPDATE OSS SET status = ?, count = ?, date = datetime('now', 'localtime') WHERE file = ?", error.message, row.count, row.file);
+                            callback();
+                        });
+                        // Handle upload completion.
+                        upload.on('uploaded', function (details) {
+                            logger.info('ossStream uploaded', details);
+                            db.run("DELETE FROM OSS WHERE file = ?", row.file);
+                            callback();
+                        });
+                        // Pipe the incoming filestream through compression, and upload to Aliyun OSS.
+                        fs.createReadStream(row.file).pipe(upload);
+                    }
+                });
+            }
+        });
+    })
 }
