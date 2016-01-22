@@ -8,8 +8,10 @@ var ALY = require('aliyun-sdk');
 var async = require('async');
 var later = require('later');
 var sqlite3 = require('sqlite3').verbose();
+var yaml = require('js-yaml');
 
 var logFile = path.join(__dirname, '../queue.log');
+fs.removeSync(logFile);
 var logger = bunyan.createLogger({
     name: 'queue',
     level: process.env.LOG_LEVEL || 'debug',
@@ -19,22 +21,24 @@ var logger = bunyan.createLogger({
         path: logFile
     }],
 });
+var config = yaml.safeLoad(fs.readFileSync(path.join(__dirname, 'config.yaml')));
 
 process.umask(0);
 var dbFile = path.join(__dirname, '../nfs.db');
 if (!fs.existsSync(dbFile)) {
     fs.writeFileSync(dbFile, '', {mode: parseInt('0777', 8)});
 }
+
 var db = new sqlite3.Database(dbFile);
 
 var libOSS = new ALY.OSS({
-    "accessKeyId": 'ACSpY7WtwtOZJYFG',
-    "secretAccessKey": 'CjQwnI6peo',
-    "endpoint": 'http://oss-cn-hangzhou.aliyuncs.com',
-    "apiVersion": "2013-10-15"
+    "accessKeyId": config.OSS['accessKeyId'],
+    "secretAccessKey": config.OSS['secretAccessKey'],
+    "endpoint": config.OSS['endpoint'],
+    "apiVersion": config.OSS['apiVersion']
 });
 var ossStream = require('oss-upload-stream')(libOSS);
-var bucket = 'gktest2';
+var bucket = config.OSS['bucket'];
 var textSched = later.parse.text('every 1 min');
 var timer = later.setInterval(upload, textSched);
 

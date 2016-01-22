@@ -43,7 +43,7 @@ if (exportsPath[-1] != path.sep) {
 var sqlite3 = require('sqlite3').verbose();
 process.umask(0);
 var dbFile = path.join(__dirname, '../nfs.db');
-//fs.removeSync(dbFile);
+fs.removeSync(dbFile);
 if (!fs.existsSync(dbFile)) {
     fs.writeFileSync(dbFile, '', {mode: parseInt('0777', 8)});
 }
