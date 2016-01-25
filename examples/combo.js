@@ -1097,34 +1097,34 @@ function write(req, res, next) {
 
                     res.send();
                     next();
+
                     if (filename.indexOf(".") != 0) {
                         var object = f.replace(exportsPath, '');
                         var params = {
                             Bucket: bucket,
                             Key: object
                         };
-                        libOSS.headObject(params, function (error, result) {
-                            if (error) {
-                                req.log.error('libOSS.headObject', error);
-                                db.serialize(function () {
-                                    db.get('SELECT * FROM OSS WHERE file = ?', f, function (err, row) {
-                                        if (err) {
-                                        } else if (row) {
-                                            //update数据库, 当status状态是error时重置状态
-                                            if (row.status == 'error') {
-                                                db.run("UPDATE File SET status = ?, date = datetime('now', 'localtime') WHERE file = ?", '', f, function (err, row) {
-                                                    req.log.error('write headObject', err, row);
-                                                });
-                                            }
-                                        } else {
+                        db.serialize(function () {
+                            db.get('SELECT * FROM OSS WHERE file = ?', f, function (err, row) {
+                                if (err) {
+                                } else if (row) {
+                                    //update数据库, 当status状态是error时重置状态
+                                    if (row.status == 'error') {
+                                        db.run("UPDATE File SET status = ?, date = datetime('now', 'localtime') WHERE file = ?", '', f, function (err, row) {
+                                            req.log.error('write headObject', err, row);
+                                        });
+                                    }
+                                } else {
+                                    libOSS.headObject(params, function (error, result) {
+                                        if (error) {
                                             db.run("INSERT INTO OSS (file, object, status, date) VALUES (?, ?, ?, datetime('now', 'localtime'))", f, object, '', function (err, row) {
                                                 req.log.error('write headObject', err, row);
                                             });
                                         }
+                                        //oss有的文件不做处理
                                     });
-                                });
-                            }
-                            //oss有的文件不做处理
+                                }
+                            });
                         });
                     }
                 });
