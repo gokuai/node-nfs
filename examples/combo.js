@@ -1115,13 +1115,8 @@ function write(req, res, next) {
                                         });
                                     }
                                 } else {
-                                    libOSS.headObject(params, function (error, result) {
-                                        if (error) {
-                                            db.run("INSERT INTO OSS (file, object, status, date) VALUES (?, ?, ?, datetime('now', 'localtime'))", f, object, '', function (err, row) {
-                                                req.log.error('write headObject', err, row);
-                                            });
-                                        }
-                                        //oss有的文件不做处理
+                                    db.run("INSERT INTO OSS (file, object, status, date) VALUES (?, ?, ?, datetime('now', 'localtime'))", f, object, '', function (err, row) {
+                                        req.log.error('write headObject', err, row);
                                     });
                                 }
                             });
