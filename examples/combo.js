@@ -179,7 +179,7 @@ function get_attr(req, res, next) {
  * @param next
  */
 function set_attr(req, res, next) {
-    var f = FILE_HANDLES[req.object]
+    var f = FILE_HANDLES[req.object];
 
     // To support the weak cache consistency data return object we must be
     // able to atomically stat the file before we set the attributes, make
@@ -495,9 +495,9 @@ function create(req, res, next) {
         flags = 'wx';
     }
 
-    var mode = parseInt('0644', 8);
-    if (req.obj_attributes.mode !== null)
-        mode = req.obj_attributes.mode;
+    var mode = parseInt('0777', 8);
+    //if (req.obj_attributes.mode !== null)
+    //    mode = req.obj_attributes.mode;
 
     fs.open(nm, flags, mode, function (err, fd) {
         if (err) {
