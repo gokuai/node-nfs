@@ -6,3 +6,5 @@ OSS:
   secretAccessKey: CjQwnI6peo
   bucket: gktest2
 exports: /Users/Meteor/Downloads/
+AES:
+  password: gokuai

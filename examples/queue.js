@@ -9,6 +9,7 @@ var async = require('async');
 var later = require('later');
 var sqlite3 = require('sqlite3').verbose();
 var yaml = require('js-yaml');
+var crypto = require('crypto');
 
 var logFile = path.join(__dirname, '../queue.log');
 fs.removeSync(logFile);
@@ -37,6 +38,8 @@ var libOSS = new ALY.OSS({
     "endpoint": config.OSS['endpoint'],
     "apiVersion": config.OSS['apiVersion']
 });
+var password = config.AES['password'];
+var encrypt = crypto.createCipher('aes-128-cbc', password);
 var ossStream = require('oss-upload-stream')(libOSS);
 var bucket = config.OSS['bucket'];
 var textSched = later.parse.text('every 1 min');
@@ -68,7 +71,7 @@ function upload() {
                             callback();
                         });
                         // Pipe the incoming filestream through compression, and upload to Aliyun OSS.
-                        fs.createReadStream(row.file).pipe(upload);
+                        fs.createReadStream(row.file).pipe(encrypt).pipe(upload);
                     }
                 });
             }

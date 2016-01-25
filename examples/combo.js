@@ -16,6 +16,7 @@ var vasync = require('vasync');
 var ALY = require('aliyun-sdk');
 var request = require('request');
 var async = require('async');
+var crypto = require('crypto');
 
 var nfs = require('../lib');
 var sattr3 = require('../lib/nfs/sattr3');
@@ -39,6 +40,8 @@ var exportsPath = path.resolve(config['exports']);
 if (exportsPath[-1] != path.sep) {
     exportsPath = exportsPath + path.sep
 }
+var password = config.AES['password'];
+var decrypt = crypto.createDecipher('aes-128-cbc', password);
 
 var sqlite3 = require('sqlite3').verbose();
 process.umask(0);
@@ -431,6 +434,7 @@ function lookup(req, res, next) {
                                                 db.run("INSERT INTO File (file, cachefile, status, url) VALUES (?, ?, ?, ?)", f, filepath, 200, ossUrl);
 
                                                 request.get(ossUrl)
+                                                    .pipe(decrypt)
                                                     .pipe(fs.createWriteStream(filepath, {mode: parseInt('0777', 8)}))
                                                     .on('finish', function () {
                                                         db.get('SELECT * FROM File WHERE file = ?', f, function (err, row) {
