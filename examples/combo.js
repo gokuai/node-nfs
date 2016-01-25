@@ -139,7 +139,7 @@ function umount(req, res, next) {
  */
 function check_fh_table(req, res, next) {
     if (!FILE_HANDLES[req.object]) {
-        req.log.warn({
+        req.log.debug({
             call: req.toString(),
             object: req.object
         }, 'check_fh_table: object not found');
@@ -1067,9 +1067,9 @@ function read(req, res, next) {
 function write(req, res, next) {
     var f = FILE_HANDLES[req.file];
     var filename = path.basename(f);
-    if (filename.indexOf(".") != 0) {
-        req.log.debug('write f req', f, req.toString());
-    }
+    //if (filename.indexOf(".") != 0) {
+    //    req.log.debug('write f req', f, req.toString());
+    //}
     fs.open(f, 'r+', function (open_err, fd) {
         if (open_err) {
             nfs.handle_error(open_err, req, res, next);
