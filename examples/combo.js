@@ -41,7 +41,6 @@ if (exportsPath[-1] != path.sep) {
     exportsPath = exportsPath + path.sep
 }
 var password = config.AES['password'];
-var decrypt = crypto.createDecipher('aes-128-cbc', password);
 
 var sqlite3 = require('sqlite3').verbose();
 process.umask(0);
@@ -399,6 +398,7 @@ function access(req, res, next) {
  */
 function lookup(req, res, next) {
     var dir = FILE_HANDLES[req.what.dir];
+    var decrypt = crypto.createDecipher('aes-128-cbc', password);
 
     fs.lstat(dir, function (err, stats) {
         if (err) {
@@ -432,7 +432,6 @@ function lookup(req, res, next) {
                                         if (!err && !row) {
                                             if (!fs.existsSync(filepath)) {
                                                 db.run("INSERT INTO File (file, cachefile, status, url) VALUES (?, ?, ?, ?)", f, filepath, 200, ossUrl);
-
                                                 request.get(ossUrl)
                                                     .pipe(decrypt)
                                                     .pipe(fs.createWriteStream(filepath, {mode: parseInt('0777', 8)}))

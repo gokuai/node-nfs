@@ -39,7 +39,6 @@ var libOSS = new ALY.OSS({
     "apiVersion": config.OSS['apiVersion']
 });
 var password = config.AES['password'];
-var encrypt = crypto.createCipher('aes-128-cbc', password);
 var ossStream = require('oss-upload-stream')(libOSS);
 var bucket = config.OSS['bucket'];
 var textSched = later.parse.text('every 1 min');
@@ -71,6 +70,7 @@ function upload() {
                             callback();
                         });
                         // Pipe the incoming filestream through compression, and upload to Aliyun OSS.
+                        var encrypt = crypto.createCipher('aes-128-cbc', password);
                         fs.createReadStream(row.file).pipe(encrypt).pipe(upload);
                     }
                 });
