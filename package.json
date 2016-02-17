@@ -9,10 +9,10 @@
   "license": "MPL-2.0",
   "repository": {
     "type": "git",
-    "url": "git://github.com/joyent/node-nfs.git"
+    "url": "git://github.com:gokuai/node-nfs.git"
   },
   "bugs": {
-    "url": "https://github.com/joyent/node-nfs/issues"
+    "url": "https://github.com/gokuai/node-nfs/issues"
   },
   "main": "lib/index.js",
   "dependencies": {
