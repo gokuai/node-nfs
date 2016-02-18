@@ -666,41 +666,46 @@ function readdirplus(req, res, next) {
                 }
             });
 
-            files.forEach(function (f) {
-                barrier.start('stat::' + f);
+            if (files.length == 0) {
+                res.send();
+                next();
+            } else {
+                files.forEach(function (f) {
+                    barrier.start('stat::' + f);
 
-                var p = path.join(dir, f);
+                    var p = path.join(dir, f);
 
-                fs.lstat(p, function (err2, stat) {
-                    barrier.done('stat::' + f);
-                    if (err2) {
-                        error = error || err2;
-                    } else {
+                    fs.lstat(p, function (err2, stat) {
+                        barrier.done('stat::' + f);
+                        if (err2) {
+                            error = error || err2;
+                        } else {
 
-                        var handle = null;
-                        for (var uuid in FILE_HANDLES) {
-                            if (FILE_HANDLES[uuid] === p) {
-                                handle = uuid;
-                                break;
+                            var handle = null;
+                            for (var uuid in FILE_HANDLES) {
+                                if (FILE_HANDLES[uuid] === p) {
+                                    handle = uuid;
+                                    break;
+                                }
                             }
-                        }
 
-                        if (!handle) {
-                            var uuid = libuuid.v4();
-                            FILE_HANDLES[uuid] = p;
-                            handle = uuid;
-                        }
+                            if (!handle) {
+                                var uuid = libuuid.v4();
+                                FILE_HANDLES[uuid] = p;
+                                handle = uuid;
+                            }
 
-                        res.addEntry({
-                            fileid: stat.ino,
-                            name: f,
-                            cookie: stat.mtime.getTime(),
-                            name_attributes: fattr3.create(stat),
-                            name_handle: handle
-                        });
-                    }
+                            res.addEntry({
+                                fileid: stat.ino,
+                                name: f,
+                                cookie: stat.mtime.getTime(),
+                                name_attributes: fattr3.create(stat),
+                                name_handle: handle
+                            });
+                        }
+                    });
                 });
-            });
+            }
         }
     });
 }
